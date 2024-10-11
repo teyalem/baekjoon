@@ -1,38 +1,39 @@
 let idx c = Char.(code c - code 'A')
-let get arr c = arr.(idx c)
-let set arr c v = arr.(idx c) <- v
+let bit c = 1 lsl idx c
+let set set c = set lor bit c
+let unset set c = set land lnot (bit c)
+let mem set c = set land (bit c) > 0
 
 let solve row col map =
-  let rec aux d (r, c) alphas =
-    if d = 26 then 26
-    else
-      match
-        [1, 0; -1, 0; 0, -1; 0, 1]
-        |> List.filter_map (fun (dr, dc) ->
-            let r, c = r+dr, c+dc in
-            if 0 <= r && r < row && 0 <= c && c < col && (not @@ get alphas map.(r).(c)) then
-              Some (r, c)
-            else
-              None)
-      with
-      | [] -> d
-      | edges -> fold d alphas edges
+  let visited = Array.make_matrix row col 0 in
+  let rec aux (r, c) alphas =
+    match
+      [1, 0; -1, 0; 0, -1; 0, 1]
+      |> List.filter_map (fun (dr, dc) ->
+          let r, c = r+dr, c+dc in
+          if 0 <= r && r < row && 0 <= c && c < col && (not @@ mem alphas map.(r).(c)) then
+            Some (r, c)
+          else
+            None)
+    with
+    | [] -> 1
+    | edges -> 1 + fold alphas edges
 
-  and fold d alphas = function
+  and fold alphas = function
     | [] -> min_int
     | (r, c) :: edges ->
-      if d = 26 then 26
+      if visited.(r).(c) = alphas then
+        fold alphas edges
       else begin
-        set alphas map.(r).(c) true;
-        let v = aux (d+1) (r, c) alphas in
-        set alphas map.(r).(c) false;
-        max v @@ fold d alphas edges
+        visited.(r).(c) <- alphas;
+        let nalphas = set alphas map.(r).(c) in
+        let v = aux (r, c) nalphas in
+        max v @@ fold alphas edges
       end
   in
 
-  let alphas = Array.make 26 false in
-  set alphas map.(0).(0) true;
-  aux 1 (0, 0) alphas
+  let alphas = set 0 map.(0).(0) in
+  aux (0, 0) alphas
 
 let () =
   Scanf.scanf "%d %d" @@ fun r c ->

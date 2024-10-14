@@ -1,87 +1,91 @@
-open Scanf
+let inf = max_int/2
 
-let mod1 n m =
-  let k = n mod m in
-  if k = 0 then m else k
+let arrmin arr mask =
+  List.fold_left (fun acc i ->
+      min acc arr.(i))
+    inf
+    mask
 
-module Graph = struct
-  type t = int list array
+let solve n w ring =
+  let dp =
+    Array.init 4 (fun _ ->
+        Array.make_matrix n 4 inf)
+  in
 
-  let make n = Array.make n []
+  let options os =
+    os
+    |> List.filter_map (fun (c, vs) ->
+        if c then Some vs else None)
+    |> List.fold_left min max_int
+  in
 
-  let add_edge g (f, t) =
-    let aux n k = g.(n) <- k::g.(n) in
-    aux f t; aux t f
+  let wall i =
+    ring.(0).(i) + ring.(1).(i) <= w
+  and brick i l =
+    ring.(l).(i) + ring.(l).((n+i-1) mod n) <= w
+  in
 
-  let del_edge g (f, t) =
-    let del k n =
-      g.(n) <- List.filter ((<>) k) g.(n)
-    in
-    let fl = g.(f) and tl = g.(t) in
-    g.(f) <- []; g.(t) <- [];
-    List.iter (del f) fl;
-    List.iter (del t) tl
+  let all = [0;1;2;3] in
 
-  let of_tuples n ts =
-    let g = make (n+1) in
-    List.iter (add_edge g) ts;
-    g
+  dp.(0).(1).(0) <- options [
+      wall 0 && wall 1, 2;
+      brick 1 0 && brick 1 1, 2];
+  dp.(0).(1).(3) <- options [wall 0, 3];
+  dp.(1).(1).(1) <- options [brick 1 1, 3];
+  dp.(2).(1).(2) <- options [brick 1 0, 3];
+  dp.(3).(1).(0) <- options [wall 1, 3];
+  dp.(3).(1).(3) <- 4;
 
-  let print g =
-    Array.iteri (fun i l ->
-        Printf.printf "%d -> [" i;
-        List.iter (Printf.printf " %d") l;
-        Printf.printf " ]\n")
-      g
+  for z = 0 to 3 do
+    let dp = dp.(z) in
+    for i = 2 to n-1 do
+      dp.(i).(0) <- options [
+          wall i, 1 + arrmin dp.(i-1) all;
+          brick i 0 && brick i 1, dp.(i-1).(3)];
 
-  let find_pairs g =
-    let buf = ref [] in
-    let rec aux () =
-      try
-        for i = 0 to Array.length g - 1 do
-          if List.length g.(i) = 1 then begin
-            let edge = i, List.hd g.(i) in
-            buf :=  edge :: !buf;
-            del_edge g edge;
-            aux ();
-            raise Exit
-          end
-        done;
-      with Exit -> ()
-    in
-    aux ();
-    !buf
+      dp.(i).(1) <- options [
+          brick i 1, 1 + arrmin dp.(i-1) [2;3]];
 
-end
+      dp.(i).(2) <- options [
+          brick i 0, 1 + arrmin dp.(i-1) [1;3]];
 
-module Gon = struct
-  type t = int * int array
+      dp.(i).(3) <-
+        2 + arrmin dp.(i-1) all;
+    done
+  done;
 
-  let get (_, arr) i = arr.(i-1)
+  let last = Array.make 4 max_int in
+  last.(0) <- arrmin dp.(0).(n-1) all;
+  last.(1) <- options [
+      brick 0 0, arrmin dp.(1).(n-1) [1;3] - 1;
+      true, arrmin dp.(1).(n-1) all];
+  last.(2) <- options [
+      brick 0 1, arrmin dp.(2).(n-1) [2;3] - 1;
+      true, arrmin dp.(2).(n-1) all];
+  last.(3) <- options [
+      brick 0 0 && brick 0 1, dp.(3).(n-1).(3) - 2;
+      brick 0 0, arrmin dp.(3).(n-1) [1; 3] - 1;
+      brick 0 1, arrmin dp.(3).(n-1) [2; 3] - 1;
+      true, arrmin dp.(3).(n-1) all];
 
-  let find_mergable (n, arr) w =
-    List.init n succ
-    |> List.concat_map (fun i ->
-        let next = mod1 (i+1) n in
-        [ i, next;
-          i + n, next + n;
-          i, i + n; ])
-    |> List.filter (fun (i, j) -> arr.(i-1) + arr.(j-1) <= w)
+  arrmin last all
 
-  let read n =
-    n, Array.init (2*n) (fun _ -> scanf " %d" Fun.id)
-end
+let solve n w ring =
+  if n = 1 then
+    if ring.(0).(0) + ring.(1).(0) <= w then
+      1 else 2
+  else
+    solve n w ring
+
+let read () = Scanf.scanf " %d" Fun.id
 
 let () =
-  let t = scanf " %d" Fun.id in
+  let t = read () in
   for _ = 1 to t do
-    let n, w = scanf " %d %d" (fun n w -> n, w) in
-    let g = Gon.read n in
-    let k = 
-      Gon.find_mergable g w
-      |> Graph.of_tuples (2*n)
-      |> Graph.find_pairs
-      |> List.length
+    Scanf.scanf " %d %d" @@ fun n w ->
+    let arr =
+      Array.init 2 (fun _ ->
+          Array.init n (fun _ -> read ()))
     in
-    Printf.printf "%d\n" (2*n-k)
+    solve n w arr |> Printf.printf "%d\n"
   done
